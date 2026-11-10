@@ -1,9 +1,9 @@
 # ReviewRoom
 
 A client feedback and approval portal we are building to learn Next.js, then
-NestJS. The current milestone includes a homepage, a project list with a status
-filter, and individual project pages using dynamic routes. The projects are
-sample data; database access comes later.
+NestJS. You can now create projects with a Server Action, filter the project
+list, and open individual project pages. Two example projects are included;
+new projects are saved as local JSON files. Database access comes later.
 
 ## Run locally
 
@@ -23,13 +23,18 @@ Keep that terminal running while using the app. Ctrl+C stops the server.
 ```text
 src/app/
   layout.tsx           Shared document structure and navigation
-  globals.css          Styles shared by both pages
+  globals.css          Shared page styles
   icon.svg             Browser tab icon, discovered by Next.js
   page.tsx             Homepage at /
   projects/
     page.tsx           Projects page at /projects
     ProjectList.tsx    Interactive list and status filter
-    data.ts            Shared sample projects and their TypeScript type
+    data.ts            Example projects and shared TypeScript types
+    store.ts           Server-only reading and saving of local project files
+    new/
+      page.tsx         Create-project page at /projects/new
+      NewProjectForm.tsx  Form, validation feedback, and pending state
+      actions.ts       The createProject Server Action
     [id]/
       page.tsx         Project details at /projects/:id
       not-found.tsx    Message for an unknown project ID
@@ -45,9 +50,9 @@ Server Components by default.
 
 ## Milestone 2: Server and Client Components
 
-`projects/page.tsx` is a Server Component. It imports the sample projects and
-passes them into `<ProjectList projects={projects} />`. For this static page,
-Next.js can do that server rendering during a production build.
+`projects/page.tsx` is a Server Component. It reads projects with `getProjects()`
+and passes them into `<ProjectList projects={projects} />`. It now waits for a
+request before reading the current local data, as described in milestone 4.
 
 `ProjectList.tsx` starts with `"use client"`. That marks an entry point for
 JavaScript that will run in the browser. It allows the component to use
@@ -80,8 +85,8 @@ The folder `[id]` captures one part of the URL. Both of these URLs use
 
 Next.js passes that value through the page's `params` prop. In this Next.js
 version, `params` is a Promise, so the page is an `async` function and reads it
-with `const { id } = await params`. It then uses `.find()` to select the matching
-project from our sample array and renders the details.
+with `const { id } = await params`. It reads the available projects, then uses
+`.find()` to select the matching project and render its details.
 
 The detail page is a Server Component. Reading an ID from the URL does not
 require `"use client"`. This page currently renders on demand; we will study
@@ -91,10 +96,66 @@ If the ID does not match a project, `notFound()` stops the page's rendering and
 Next.js displays the nearby `not-found.tsx` component. That component provides a
 link back to the project list.
 
-The data moved into `projects/data.ts` because both server pages now use it.
-This is a regular TypeScript module, not a URL. It also exports the `Project`
-type; the client list uses `import type` to share that type without importing
-the data module at runtime. The list still receives its data through props.
+The starter examples and shared types live in `projects/data.ts`. This is a
+regular TypeScript module, not a URL. The client list uses `import type` to
+share the `Project` type without importing the data module at runtime. The
+list still receives its data through props.
+
+## Milestone 4: Forms and Server Actions
+
+`/projects/new` is a specific route, so it takes precedence over `/projects/[id]`.
+Its page renders `NewProjectForm`, a Client Component with three native fields.
+An input's `name` determines its key in the submitted `FormData`.
+
+The form uses React's `useActionState(createProject, initialState)`, which returns:
+
+- `state`: feedback and field values returned by the action.
+- `formAction`: the function passed to `<form action={formAction}>`.
+- `pending`: whether the action is running, used to disable the submit button.
+
+`new/actions.ts` starts with `"use server"`. Its exported `createProject`
+function runs on the server when the form is submitted. Next.js handles the
+POST request between the browser and that function. `useActionState` supplies
+the previous state as the first argument and the submitted `FormData` as the
+second argument.
+
+The action trims the submitted text and checks required fields and length
+limits. The browser's `required` and `maxLength` attributes guide input; the
+server enforces the same rules. Validation errors return a message and the
+entered values so the user can correct the form.
+
+On success, the action follows this sequence:
+
+```text
+saveProject(values)
+  -> revalidatePath("/projects")
+  -> redirect("/projects")
+```
+
+`revalidatePath` invalidates the projects route's cached UI/data.
+`redirect` sends the user back to the list. It is outside the storage
+`try/catch` because Next.js implements redirects with a control-flow exception.
+
+The list page calls `await connection()` before reading projects. This tells
+Next.js to wait for a request, so local data is read at request time instead of
+being fixed into a prerendered page at build time.
+
+### Local storage for this lesson
+
+`store.ts` uses Node.js filesystem APIs and imports `server-only`, which keeps
+it from being imported into a Client Component. `getProjects()` combines our
+two starter examples with the saved projects. `saveProject()` assigns a UUID
+and the initial status **Awaiting feedback** on the server.
+
+Each new project is saved to its own JSON file under `.local-data/projects/`.
+The store writes a temporary file and renames it after the write completes so
+readers see complete JSON. Separate files keep concurrent creations from
+overwriting one shared array.
+
+Saved projects survive page reloads and server restarts. The `.local-data/`
+directory is excluded from Git; our commits capture code rather than local
+project records. This store needs a writable, persistent local disk. For
+deployment, we will introduce a database and authentication in later lessons.
 
 ## Startup files
 
@@ -130,6 +191,11 @@ source files change. `npm.cmd run build` prepares a production build;
 7. Open either project name. Compare the URL, title, client, and status, then
    use **Back to projects**.
 8. Visit `/projects/missing-project` to see the missing-project page.
+9. Follow **New project**, fill in the three fields, and choose **Create project**.
+   Find the new project in the list and open its detail page.
+10. Reload the page. The saved project remains available.
+11. Enter only spaces for the project name while filling the other fields.
+    The server will ask you to correct the form and preserve the other values.
 
 ## Git checkpoints
 

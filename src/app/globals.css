@@ -18,7 +18,11 @@ body {
 }
 
 a { color: var(--accent); text-underline-offset: 0.25em; }
-a:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 5px;
+}
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3, .wordmark { font-family: "Trebuchet MS", sans-serif; }
 
@@ -66,14 +70,18 @@ nav { display: flex; gap: 1.5rem; }
   display: inline-block;
   margin-top: 2rem;
   padding: 0.75rem 1.25rem;
+  border: 0;
   border-radius: 4px;
   background: var(--accent);
   color: var(--paper);
+  font: inherit;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .button:hover { text-decoration: underline; }
+.button:disabled { opacity: 0.6; cursor: wait; }
 
 .workflow {
   margin-top: 4rem;
@@ -144,6 +152,29 @@ nav { display: flex; gap: 1.5rem; }
 
 .project-details dt { font-weight: 600; }
 .project-details dd { margin: 0; color: var(--muted); }
+
+.project-form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 36rem;
+  margin-top: 2rem;
+}
+
+.project-form label { margin-top: 0.5rem; font-weight: 600; }
+
+.project-form input, .project-form textarea {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+
+.project-form textarea { resize: vertical; }
+.project-form .button { justify-self: start; margin-top: 0.5rem; }
+.form-error { color: #a32127; }
 
 .skip-link {
   position: absolute;

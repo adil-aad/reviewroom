@@ -1,3 +1,9 @@
+export type ProjectInput = {
+  name: string;
+  client: string;
+  description: string;
+};
+
 export type Project = {
   id: string;
   name: string;

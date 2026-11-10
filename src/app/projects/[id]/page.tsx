@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { projects } from "../data";
+import { getProjects } from "../store";
 
 export default async function ProjectPage({
   params,
@@ -8,6 +8,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const projects = await getProjects();
   const project = projects.find((project) => project.id === id);
 
   if (!project) {
