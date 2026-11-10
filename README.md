@@ -1,9 +1,9 @@
 # ReviewRoom
 
 A client feedback and approval portal we are building to learn Next.js, then
-NestJS. The current milestone is a Next.js app with two pages, a shared layout,
-and an interactive project status filter. The projects are sample data;
-database access comes later.
+NestJS. The current milestone includes a homepage, a project list with a status
+filter, and individual project pages using dynamic routes. The projects are
+sample data; database access comes later.
 
 ## Run locally
 
@@ -29,6 +29,10 @@ src/app/
   projects/
     page.tsx           Projects page at /projects
     ProjectList.tsx    Interactive list and status filter
+    data.ts            Shared sample projects and their TypeScript type
+    [id]/
+      page.tsx         Project details at /projects/:id
+      not-found.tsx    Message for an unknown project ID
 ```
 
 `layout.tsx` receives the matching page as its `children` prop. The shared
@@ -41,7 +45,7 @@ Server Components by default.
 
 ## Milestone 2: Server and Client Components
 
-`projects/page.tsx` is a Server Component. It keeps the sample projects and
+`projects/page.tsx` is a Server Component. It imports the sample projects and
 passes them into `<ProjectList projects={projects} />`. For this static page,
 Next.js can do that server rendering during a production build.
 
@@ -63,6 +67,34 @@ Client Components can also be prerendered into the initial HTML on the server.
 React then makes them interactive in the browser through **hydration**.
 `"use client"` identifies the browser boundary; it does not disable initial
 server rendering.
+
+## Milestone 3: Dynamic routes
+
+The folder `[id]` captures one part of the URL. Both of these URLs use
+`projects/[id]/page.tsx`:
+
+| URL | Captured `id` |
+| --- | --- |
+| `/projects/brand-identity` | `brand-identity` |
+| `/projects/website-homepage` | `website-homepage` |
+
+Next.js passes that value through the page's `params` prop. In this Next.js
+version, `params` is a Promise, so the page is an `async` function and reads it
+with `const { id } = await params`. It then uses `.find()` to select the matching
+project from our sample array and renders the details.
+
+The detail page is a Server Component. Reading an ID from the URL does not
+require `"use client"`. This page currently renders on demand; we will study
+prerendering dynamic routes in a later lesson.
+
+If the ID does not match a project, `notFound()` stops the page's rendering and
+Next.js displays the nearby `not-found.tsx` component. That component provides a
+link back to the project list.
+
+The data moved into `projects/data.ts` because both server pages now use it.
+This is a regular TypeScript module, not a URL. It also exports the `Project`
+type; the client list uses `import type` to share that type without importing
+the data module at runtime. The list still receives its data through props.
 
 ## Startup files
 
@@ -95,6 +127,9 @@ source files change. `npm.cmd run build` prepares a production build;
    **All statuses**. Watch the list change while the URL stays the same.
 6. Reload the page. The filter starts at **All statuses** again because its
    initial state is `"All"`.
+7. Open either project name. Compare the URL, title, client, and status, then
+   use **Back to projects**.
+8. Visit `/projects/missing-project` to see the missing-project page.
 
 ## Git checkpoints
 
@@ -109,7 +144,7 @@ introduce a database, its credentials will stay on the server. Later, NestJS wil
 own the dedicated API, business logic, and database access. Next.js will continue
 to serve the React application and can request data from that API.
 
-We will add one working feature at a time: project details, reading and changing
-data, persistence, authentication and permissions, client feedback, approvals,
-then deployment. NestJS will be introduced after the Next.js foundations are
-clear, at a point where the backend responsibilities are concrete.
+Upcoming features cover reading and changing data, persistence, authentication
+and permissions, client feedback, approvals, then deployment. NestJS will be
+introduced after the Next.js foundations are clear, at a point where the
+backend responsibilities are concrete.

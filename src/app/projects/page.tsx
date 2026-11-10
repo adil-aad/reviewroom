@@ -1,19 +1,5 @@
 import ProjectList from "./ProjectList";
-
-const projects = [
-  {
-    id: "brand-identity",
-    name: "Brand identity",
-    client: "Maji Studio",
-    status: "Awaiting feedback",
-  },
-  {
-    id: "website-homepage",
-    name: "Website homepage",
-    client: "Northline",
-    status: "Approved",
-  },
-];
+import { projects } from "./data";
 
 export default function ProjectsPage() {
   return (

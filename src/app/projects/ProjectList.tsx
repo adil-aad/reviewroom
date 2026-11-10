@@ -1,13 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-
-type Project = {
-  id: string;
-  name: string;
-  client: string;
-  status: string;
-};
+import type { Project } from "./data";
 
 export default function ProjectList({ projects }: { projects: Project[] }) {
   const [status, setStatus] = useState("All");
@@ -38,7 +33,9 @@ export default function ProjectList({ projects }: { projects: Project[] }) {
           {visibleProjects.map((project) => (
             <li key={project.id}>
               <div>
-                <h2>{project.name}</h2>
+                <h2>
+                  <Link href={`/projects/${project.id}`}>{project.name}</Link>
+                </h2>
                 <p>{project.client}</p>
               </div>
               <span className="status">{project.status}</span>
