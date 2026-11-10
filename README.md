@@ -1,9 +1,10 @@
 # ReviewRoom
 
 A client feedback and approval portal we are building to learn Next.js, then
-NestJS. You can now create projects with a Server Action, filter the project
-list, and open individual project pages. Two example projects are included;
-new projects are saved as local JSON files. Database access comes later.
+NestJS. You can create projects, update their status with Server Actions,
+filter the project list, and open individual project pages. Two example
+projects are included; saved projects live in local JSON files. Database
+access comes later.
 
 ## Run locally
 
@@ -37,6 +38,8 @@ src/app/
       actions.ts       The createProject Server Action
     [id]/
       page.tsx         Project details at /projects/:id
+      ProjectStatusForm.tsx  Status selector, pending state, and feedback
+      actions.ts       The changeProjectStatus Server Action
       not-found.tsx    Message for an unknown project ID
 ```
 
@@ -157,6 +160,47 @@ directory is excluded from Git; our commits capture code rather than local
 project records. This store needs a writable, persistent local disk. For
 deployment, we will introduce a database and authentication in later lessons.
 
+## Milestone 5: Updating a project
+
+Each project detail page now renders `ProjectStatusForm` with the project's
+ID and current status as props. The page remains a Server Component; only the
+form needs `"use client"` for `useActionState` and its pending/error feedback.
+
+The dropdown starts with `defaultValue={status}`. Its `key={status}` recreates
+just the dropdown when the saved status changes, so React's automatic form
+reset uses the new saved value. The status displayed above the form also comes
+from the server. The form's `key` is the project ID, so a different project
+starts with its own selection and feedback.
+
+The form submits two fields: a hidden `projectId` and the selected `status`.
+The hidden field includes the ID in `FormData` without showing another input.
+It is still visible and editable in browser tools, so the server checks that
+the project exists. The action also accepts only **Awaiting feedback** or
+**Approved**, even if someone submits a different value outside the dropdown.
+
+`ProjectStatus` is a TypeScript union of those two strings. It helps catch
+mistakes in our code; the action's checks validate the actual submitted data.
+
+`changeProjectStatus` calls `updateProjectStatus` in `store.ts`. The store
+finds the project, creates `{ ...project, status }`, and writes it back to the
+existing file. The ID and other fields stay the same. An unknown ID returns
+`null`, which the action turns into a useful error message.
+
+The two starter projects begin in `data.ts`. Their first update creates a
+local saved copy with a stable filename, such as `sample-brand-identity.json`.
+`getProjects()` uses that saved copy in place of the starter example, so it
+appears once in the list and its new status survives a restart. Existing
+timestamped project files continue to work.
+
+Both creation and updates use the small `writeProject` helper. Each write
+gets a unique temporary filename and renames it only after writing finishes.
+If two status updates reach the same project, the last completed rename wins.
+
+After saving, the action calls `revalidatePath` for both `/projects` and the
+specific detail URL. This refreshes the displayed status and makes the list's
+filter use the updated data. We return a success message and stay on the
+detail page; this action does not need `redirect()`.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
@@ -196,6 +240,10 @@ source files change. `npm.cmd run build` prepares a production build;
 10. Reload the page. The saved project remains available.
 11. Enter only spaces for the project name while filling the other fields.
     The server will ask you to correct the form and preserve the other values.
+12. Open a project, select **Approved**, and choose **Save status**. The status
+    shown above the form updates and a **Status saved.** message appears.
+13. Reload the detail page, then return to the list and filter by **Approved**.
+    The saved status is used in both places. Try this with a starter project too.
 
 ## Git checkpoints
 

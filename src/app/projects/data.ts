@@ -4,11 +4,13 @@ export type ProjectInput = {
   description: string;
 };
 
+export type ProjectStatus = "Awaiting feedback" | "Approved";
+
 export type Project = {
   id: string;
   name: string;
   client: string;
-  status: string;
+  status: ProjectStatus;
   description: string;
 };
 

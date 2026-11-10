@@ -162,7 +162,7 @@ nav { display: flex; gap: 1.5rem; }
 
 .project-form label { margin-top: 0.5rem; font-weight: 600; }
 
-.project-form input, .project-form textarea {
+.project-form input, .project-form select, .project-form textarea {
   width: 100%;
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--line);
@@ -175,6 +175,7 @@ nav { display: flex; gap: 1.5rem; }
 .project-form textarea { resize: vertical; }
 .project-form .button { justify-self: start; margin-top: 0.5rem; }
 .form-error { color: #a32127; }
+.form-success { color: var(--accent); }
 
 .skip-link {
   position: absolute;

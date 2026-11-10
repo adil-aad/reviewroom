@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProjects } from "../store";
+import ProjectStatusForm from "./ProjectStatusForm";
 
 export default async function ProjectPage({
   params,
@@ -26,6 +27,7 @@ export default async function ProjectPage({
         <dt>Status</dt>
         <dd>{project.status}</dd>
       </dl>
+      <ProjectStatusForm key={project.id} projectId={project.id} status={project.status} />
     </main>
   );
 }
