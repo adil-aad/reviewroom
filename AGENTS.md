@@ -12,6 +12,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - Build ReviewRoom in small working milestones and explain new Next.js concepts
   using the actual project code. The user is comfortable with React.
+- Keep components simple for learning, using direct props and local state when
+  appropriate. Introduce abstractions as the lessons need them.
 - Add NestJS later, once the Next.js foundations and backend responsibilities
   are clear.
 - Make a focused local Git commit after each completed, validated milestone.

@@ -1,8 +1,9 @@
 # ReviewRoom
 
 A client feedback and approval portal we are building to learn Next.js, then
-NestJS. The current milestone is a Next.js app with two pages and a shared
-layout. The projects are sample data; database access comes later.
+NestJS. The current milestone is a Next.js app with two pages, a shared layout,
+and an interactive project status filter. The projects are sample data;
+database access comes later.
 
 ## Run locally
 
@@ -27,6 +28,7 @@ src/app/
   page.tsx             Homepage at /
   projects/
     page.tsx           Projects page at /projects
+    ProjectList.tsx    Interactive list and status filter
 ```
 
 `layout.tsx` receives the matching page as its `children` prop. The shared
@@ -35,8 +37,32 @@ name does not determine the URL; the file location does.
 
 Navigation uses `Link` from `next/link`. It links to another route and lets
 Next.js handle navigation within the app. Our source page and layout files are
-Server Components by default. We will study server rendering and interactive
-Client Components in the next milestone.
+Server Components by default.
+
+## Milestone 2: Server and Client Components
+
+`projects/page.tsx` is a Server Component. It keeps the sample projects and
+passes them into `<ProjectList projects={projects} />`. For this static page,
+Next.js can do that server rendering during a production build.
+
+`ProjectList.tsx` starts with `"use client"`. That marks an entry point for
+JavaScript that will run in the browser. It allows the component to use
+`useState` and handle the dropdown's `onChange` event. Importing this component
+does not turn its parent page into a Client Component.
+
+The `projects` array is sent to the client component as props. These props must
+be serializable by React; our objects contain plain strings. A Server Component
+can keep its own code on the server while still sending data to the browser.
+
+The filter uses one state variable, `status`, and calculates `visibleProjects`
+from the current props and selection. Changing the selection updates the list
+in the browser. The original array stays the same, and the selected filter is
+not saved to a database or the URL.
+
+Client Components can also be prerendered into the initial HTML on the server.
+React then makes them interactive in the browser through **hydration**.
+`"use client"` identifies the browser boundary; it does not disable initial
+server rendering.
 
 ## Startup files
 
@@ -65,6 +91,10 @@ source files change. `npm.cmd run build` prepares a production build;
 2. Notice that the navigation appears on both pages.
 3. Change the wordmark text in `layout.tsx`; observe it on both pages.
 4. Change the heading in `projects/page.tsx`; observe that only that page changes.
+5. On `/projects`, select **Approved**, then **Awaiting feedback**, then
+   **All statuses**. Watch the list change while the URL stays the same.
+6. Reload the page. The filter starts at **All statuses** again because its
+   initial state is `"All"`.
 
 ## Git checkpoints
 
