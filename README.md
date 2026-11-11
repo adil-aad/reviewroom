@@ -3,7 +3,8 @@
 A client feedback and approval portal we are building to learn Next.js, then
 NestJS. You can create projects, update their status with Server Actions,
 filter the project list with a shareable URL, and add feedback on individual
-project pages. Two example projects are included; saved projects and feedback
+project pages. Each project's feedback can be downloaded as JSON. Two example
+projects are included; saved projects and feedback
 live in local JSON files. Database access comes later. Project routes include
 loading feedback and a recovery screen for unexpected rendering errors.
 
@@ -46,6 +47,8 @@ src/app/
       FeedbackForm.tsx  Name and feedback fields with submission feedback
       actions.ts       Status-update and add-feedback Server Actions
       not-found.tsx    Message for an unknown project ID
+      feedback/
+        route.ts       GET handler for a project's feedback download
 ```
 
 `layout.tsx` receives the matching page as its `children` prop. The shared
@@ -431,6 +434,93 @@ checks will be a later milestone before using this as a private client portal.
 4. Reload the page, then restart the server. The saved notes remain.
 5. Open a different project. It has its own feedback history.
 6. Submit a whitespace-only message. The form asks you to correct it.
+
+## Milestone 9: Route Handlers and a feedback download
+
+Each project detail page has a **Download feedback** link below **Feedback
+history**. It requests `/projects/:id/feedback` and downloads a readable JSON
+file containing the project and its feedback, with the newest notes first.
+A project with no notes still downloads successfully, with `"feedback": []`.
+The file is a snapshot of the saved data at the time of the request.
+
+### A URL that returns data
+
+The file `projects/[id]/feedback/route.ts` defines this URL. A `route.ts` can
+live anywhere under `app`; an `api` folder is a naming convention rather than
+a requirement. We place it in the `feedback` subfolder because `route.ts` and
+`page.tsx` cannot own the same URL. The project page remains at `/projects/:id`.
+
+Next.js calls the handler's named `GET` export for an HTTP GET request. It
+receives a `Request` and a context object. Our `_request` parameter is unused;
+we need the context's `params`, which is a Promise in this Next.js version:
+
+```ts
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  // Find the project, read its feedback, and return a Response.
+}
+```
+
+The handler reuses `getProjects()` and `getProjectFeedback()`, just as the
+Server Component does. The detail page still reads these functions directly;
+it does not make an HTTP request to its own download handler.
+
+### Body, status, and headers
+
+The successful response uses the standard Web `Response` API:
+
+```ts
+return new Response(JSON.stringify({ project, feedback }, null, 2) + "\n", {
+  headers: {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Disposition": `attachment; filename="feedback-${encodeURIComponent(project.id)}.json"`,
+    "Cache-Control": "no-store",
+  },
+});
+```
+
+`JSON.stringify` creates the response body; `null, 2` indents the file for
+reading. The response status defaults to **200 OK**. `Content-Type` describes
+the body, and `Content-Disposition: attachment` asks the browser to download
+it with a suggested filename. That filename uses the project's stable ID.
+`Cache-Control: no-store` tells browsers and intermediaries not to store a
+copy of the response, so another download requests the current saved data.
+GET Route Handlers run at request time by default in our installed version.
+
+The link is a regular `<a href="..." download>`. It requests a file through
+the browser's native download flow; Next.js `Link` is for navigation between
+our UI routes. The download keeps the project page open and needs no Client
+Component, click handler, or `"use server"` directive.
+
+If the project does not exist, the handler returns
+`Response.json({ error: "Project not found." }, { status: 404, ... })`.
+If reading local data fails, it logs the original error on the server and
+returns a generic JSON error with status **500**. Error responses have no
+attachment header. They are HTTP responses; the React `error.tsx` and
+`not-found.tsx` screens belong to our page rendering.
+
+| Server entry point | ReviewRoom example | Result |
+| --- | --- | --- |
+| `page.tsx` | `/projects/:id` | Renders the project UI |
+| Server Action | `addProjectFeedback` | Saves submitted form data and refreshes the page |
+| `route.ts` | GET `/projects/:id/feedback` | Returns a JSON file or an HTTP error |
+
+We export only `GET`. Next.js also supplies HEAD and OPTIONS automatically
+and returns **405 Method Not Allowed** for a method such as POST. Downloading
+reads data; it does not create a note or change the project.
+
+### Try the download
+
+1. Open a project and choose **Download feedback**. Open the JSON file in your
+   editor and compare its `project` and `feedback` fields with the page.
+2. Add another note, then download again. The new file includes the new note.
+3. Download feedback from a different project. Only its own notes are included.
+4. Download from a project with no notes; its feedback array is empty.
+5. Open `/projects/missing-project/feedback` directly. The response is JSON
+   with status 404. Inspect its status and headers in the browser's Network tab.
 
 ## Startup files
 
