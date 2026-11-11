@@ -2,8 +2,8 @@
 
 A client feedback and approval portal we are building to learn Next.js, then
 NestJS. You can create projects, update their status with Server Actions,
-filter the project list, and open individual project pages. Two example
-projects are included; saved projects live in local JSON files. Database
+filter the project list with a shareable URL, and open individual project
+pages. Two example projects are included; saved projects live in local JSON files. Database
 access comes later. Project routes include loading feedback and a recovery
 screen for unexpected rendering errors.
 
@@ -61,18 +61,19 @@ and passes them into `<ProjectList projects={projects} />`. It now waits for a
 request before reading the current local data, as described in milestone 4.
 
 `ProjectList.tsx` starts with `"use client"`. That marks an entry point for
-JavaScript that will run in the browser. It allows the component to use
-`useState` and handle the dropdown's `onChange` event. Importing this component
-does not turn its parent page into a Client Component.
+JavaScript that will run in the browser. It allows the component to use hooks
+and handle the dropdown's `onChange` event. Importing this component does not
+turn its parent page into a Client Component.
 
 The `projects` array is sent to the client component as props. These props must
 be serializable by React; our objects contain plain strings. A Server Component
 can keep its own code on the server while still sending data to the browser.
 
-The filter uses one state variable, `status`, and calculates `visibleProjects`
-from the current props and selection. Changing the selection updates the list
-in the browser. The original array stays the same, and the selected filter is
-not saved to a database or the URL.
+In this milestone, the filter used one `useState` variable, `status`, and
+calculated `visibleProjects` from the current props and selection. Changing
+the selection updated the list in the browser without changing the original
+array. Milestone 7 replaces that local state with a URL query parameter so
+the selection can survive reloads and be shared.
 
 Client Components can also be prerendered into the initial HTML on the server.
 React then makes them interactive in the browser through **hydration**.
@@ -269,6 +270,82 @@ again** requests fresh content without requiring a full browser reload.
 Visiting `/projects/missing-project` still shows **Project not found**, and
 ordinary form validation still appears beside the form.
 
+## Milestone 7: Keeping the filter in the URL
+
+The status filter now reads its selection from the URL. For example, opening
+`/projects?status=Approved` selects **Approved** and shows only approved
+projects. Reloading or sharing that address preserves the selected view.
+
+`[id]` in `/projects/[id]` is a **route parameter**: it identifies a project.
+`status` after the `?` is a **query parameter**: it changes the view of the
+same `/projects` page. A query parameter does not need another route folder.
+
+| URL | Selected filter |
+| --- | --- |
+| `/projects` | All statuses |
+| `/projects?status=Approved` | Approved |
+| `/projects?status=Awaiting+feedback` | Awaiting feedback |
+| `/projects?status=unknown` | All statuses |
+
+### Reading the selection
+
+`ProjectList.tsx` uses `useSearchParams()` from `next/navigation` to read the
+current query parameters. Its `.get("status")` returns a string, or `null`
+when the parameter is missing. It decodes URL encoding automatically, so
+`Awaiting+feedback` becomes `Awaiting feedback`. For repeated `status`
+parameters, `.get()` uses the first value.
+
+The component accepts our two known statuses and treats anything else as
+**All statuses**. An unsupported value stays in the address bar until the
+user changes the filter, but does not leave the dropdown in an invalid state.
+Both the dropdown's `value` and `visibleProjects` come from this validated
+value. There is no separate `useState` value or effect to keep synchronized.
+
+### Changing the selection
+
+The hook returns read-only search parameters. In the `changeStatus` event
+handler, we create a mutable `URL` from `window.location.href` and change its
+`searchParams`. Selecting **All statuses** deletes `status`; another selection
+sets it. Other query parameters and any `#fragment` are preserved.
+
+The handler then calls:
+
+```ts
+window.history.pushState(null, "", url);
+```
+
+This is the browser's History API. Next.js integrates it with its router, so
+`useSearchParams()` updates and React renders the matching projects. It adds
+a history entry without reloading the document or requesting new project
+data. Browser **Back** and **Forward** restore previous selections too.
+`replaceState` would replace the current entry; we use `pushState` so each
+filter change can be revisited.
+
+The list still filters the projects already received through props. If we
+later fetch a filtered subset from a database, the page can read its server
+`searchParams` prop and use a Next.js navigation to request that data. Saving
+a filter in the URL does not save or change any project's status.
+
+`window` is only accessed inside the browser event handler. The component can
+still render on the server initially: `projects/page.tsx` already calls
+`await connection()`, so `useSearchParams` has the incoming request's query
+parameters. Statically prerendered routes using this hook need a Suspense
+boundary; our project route already renders at request time.
+
+### Try the URL filter
+
+1. Open `/projects`, choose **Approved**, and inspect `?status=Approved` in
+   the address bar.
+2. Reload or open that URL in another tab. The selection and filtered list
+   are preserved.
+3. Choose **Awaiting feedback**, then use the browser's **Back** and
+   **Forward** buttons. Both the dropdown and visible projects follow the URL.
+4. Choose **All statuses**. The `status` query parameter disappears.
+5. Open `/projects?status=unknown`. All projects remain visible.
+6. Open a project from a filtered list, then use browser **Back** to return
+   to that filtered view. The page's **Back to projects** link deliberately
+   points to the default `/projects` view.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
@@ -297,9 +374,8 @@ source files change. `npm.cmd run build` prepares a production build;
 3. Change the wordmark text in `layout.tsx`; observe it on both pages.
 4. Change the heading in `projects/page.tsx`; observe that only that page changes.
 5. On `/projects`, select **Approved**, then **Awaiting feedback**, then
-   **All statuses**. Watch the list change while the URL stays the same.
-6. Reload the page. The filter starts at **All statuses** again because its
-   initial state is `"All"`.
+   **All statuses**. Watch the list and the URL's `status` parameter change.
+6. Select **Approved** and reload the page. The URL preserves the filter.
 7. Open either project name. Compare the URL, title, client, and status, then
    use **Back to projects**.
 8. Visit `/projects/missing-project` to see the missing-project page.
@@ -315,8 +391,8 @@ source files change. `npm.cmd run build` prepares a production build;
 
 ## Git checkpoints
 
-Each working milestone gets a local Git commit after validation. Use
-`git log --oneline` to see the checkpoints and `git show <commit>` to inspect
+Each working milestone gets a local Git commit after validation and your
+approval. Use `git log --oneline` to see the checkpoints and `git show <commit>` to inspect
 what changed at a particular step.
 
 ## Architecture we will build toward

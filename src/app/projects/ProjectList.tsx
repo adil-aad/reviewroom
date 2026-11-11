@@ -1,11 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Project } from "./data";
 
 export default function ProjectList({ projects }: { projects: Project[] }) {
-  const [status, setStatus] = useState("All");
+  const searchParams = useSearchParams();
+  const requestedStatus = searchParams.get("status");
+  const status =
+    requestedStatus === "Awaiting feedback" || requestedStatus === "Approved"
+      ? requestedStatus
+      : "All";
+
+  function changeStatus(nextStatus: string) {
+    const url = new URL(window.location.href);
+
+    if (nextStatus === "All") {
+      url.searchParams.delete("status");
+    } else {
+      url.searchParams.set("status", nextStatus);
+    }
+
+    // Next.js updates useSearchParams when the browser history changes.
+    window.history.pushState(null, "", url);
+  }
 
   const visibleProjects = projects.filter(
     (project) => status === "All" || project.status === status,
@@ -18,7 +36,7 @@ export default function ProjectList({ projects }: { projects: Project[] }) {
         <select
           id="project-status"
           value={status}
-          onChange={(event) => setStatus(event.target.value)}
+          onChange={(event) => changeStatus(event.target.value)}
         >
           <option value="All">All statuses</option>
           <option value="Awaiting feedback">Awaiting feedback</option>
