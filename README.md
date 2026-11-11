@@ -2,10 +2,10 @@
 
 A client feedback and approval portal we are building to learn Next.js, then
 NestJS. You can create projects, update their status with Server Actions,
-filter the project list with a shareable URL, and open individual project
-pages. Two example projects are included; saved projects live in local JSON files. Database
-access comes later. Project routes include loading feedback and a recovery
-screen for unexpected rendering errors.
+filter the project list with a shareable URL, and add feedback on individual
+project pages. Two example projects are included; saved projects and feedback
+live in local JSON files. Database access comes later. Project routes include
+loading feedback and a recovery screen for unexpected rendering errors.
 
 ## Run locally
 
@@ -35,6 +35,7 @@ src/app/
     ProjectList.tsx    Interactive list and status filter
     data.ts            Example projects and shared TypeScript types
     store.ts           Server-only reading and saving of local project files
+    feedback-store.ts  Server-only reading and saving of project feedback
     new/
       page.tsx         Create-project page at /projects/new
       NewProjectForm.tsx  Form, validation feedback, and pending state
@@ -42,7 +43,8 @@ src/app/
     [id]/
       page.tsx         Project details at /projects/:id
       ProjectStatusForm.tsx  Status selector, pending state, and feedback
-      actions.ts       The changeProjectStatus Server Action
+      FeedbackForm.tsx  Name and feedback fields with submission feedback
+      actions.ts       Status-update and add-feedback Server Actions
       not-found.tsx    Message for an unknown project ID
 ```
 
@@ -346,6 +348,90 @@ boundary; our project route already renders at request time.
    to that filtered view. The page's **Back to projects** link deliberately
    points to the default `/projects` view.
 
+## Milestone 8: Feedback attached to a project
+
+Each project detail page now has a feedback form and a history, with the newest
+entries first. A note contains the author's name, message, and a server-generated
+ID and timestamp. Its `projectId` links it to the project it belongs to. This is
+a **one-to-many relationship**: one project can have many feedback entries.
+
+`FeedbackInput` in `projects/data.ts` describes the two user-entered fields.
+`ProjectFeedback` combines those fields with the ID, project ID, and timestamp
+added by the server. The TypeScript `&` combines the fields of both types.
+
+### A server-rendered history beside an interactive form
+
+The detail page first finds the project or calls `notFound()`. It then calls
+`await getProjectFeedback(project.id)` and renders the returned entries with
+`.map()`. That history stays in the Server Component; `FeedbackForm` is the
+Client Component that needs `useActionState` for submission feedback.
+
+The form receives only `projectId` as a prop. It does not receive or maintain
+its own copy of the feedback history. The page renders timestamps in UTC with
+an explicit label and a machine-readable `<time dateTime={entry.createdAt}>`.
+Messages are ordinary JSX text, so HTML-like input appears as text. CSS
+preserves line breaks and wraps long messages.
+
+### Saving and refreshing in one request
+
+The form submits a hidden project ID, author, and message to
+`addProjectFeedback` in `[id]/actions.ts`. The action checks actual `FormData`
+values, trims whitespace, requires both fields, and limits the name to 80
+characters and the message to 2,000. Browser attributes guide input; the
+server repeats the checks because submissions can bypass the browser form.
+
+`saveProjectFeedback` checks that the project exists before writing anything.
+The hidden project ID is editable in browser tools, so rendering a valid form
+alone does not establish that the submitted ID is valid.
+
+On success, the action follows this sequence:
+
+```text
+saveProjectFeedback(projectId, values)
+  -> revalidatePath(`/projects/${projectId}`)
+  -> return success feedback and the next form values
+```
+
+Next.js can send both the action's result and the newly rendered page in the
+same response. `useActionState` receives **Feedback added.**, while the server
+history includes the saved note. The form clears the message and keeps the
+author's name for another note. There is no extra client fetch or manual
+append to a local array.
+
+Validation or storage failures return an error and the entered values so the
+user can correct or retry them. While saving, the fields and submit button
+are disabled. Changing a project's status uses its separate form and action;
+feedback entries remain attached to that project.
+
+### Local persistence and the next backend lesson
+
+`feedback-store.ts` imports `server-only` and writes one JSON file per entry
+under `.local-data/feedback/`. Filenames contain the server timestamp and a
+UUID. It writes a temporary file, then renames it, so readers see complete
+JSON. Separate files allow simultaneous additions without overwriting one
+shared array. Entries created in the same millisecond have no guaranteed
+order relative to each other.
+
+The reader sorts filenames newest first, reads the entries, and returns only
+those matching the requested project ID. A missing feedback directory means
+an empty history. This small local store reads all feedback files; a database
+will later let us query related records directly and add stronger constraints.
+
+Notes survive reloads and server restarts. `.local-data/` remains excluded
+from Git. This lesson still has no accounts or permissions: the entered name
+is a display name, not a verified identity. Authentication and project access
+checks will be a later milestone before using this as a private client portal.
+
+### Try project feedback
+
+1. Open a project, enter your name and a note, and choose **Add feedback**.
+2. See the note in the history immediately. The message field clears and the
+   name stays ready for another note.
+3. Add a second note with multiple lines. It appears above the first one.
+4. Reload the page, then restart the server. The saved notes remain.
+5. Open a different project. It has its own feedback history.
+6. Submit a whitespace-only message. The form asks you to correct it.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
@@ -391,9 +477,9 @@ source files change. `npm.cmd run build` prepares a production build;
 
 ## Git checkpoints
 
-Each working milestone gets a local Git commit after validation and your
-approval. Use `git log --oneline` to see the checkpoints and `git show <commit>` to inspect
-what changed at a particular step.
+Each working milestone gets a focused local Git commit after validation.
+Use `git log --oneline` to see the checkpoints and `git show <commit>` to
+inspect what changed at a particular step.
 
 ## Architecture we will build toward
 
@@ -402,7 +488,8 @@ introduce a database, its credentials will stay on the server. Later, NestJS wil
 own the dedicated API, business logic, and database access. Next.js will continue
 to serve the React application and can request data from that API.
 
-Upcoming features cover reading and changing data, persistence, authentication
-and permissions, client feedback, approvals, then deployment. NestJS will be
-introduced after the Next.js foundations are clear, at a point where the
-backend responsibilities are concrete.
+We now have project creation, status updates, a URL filter, and project feedback
+with local persistence. Future lessons will cover database persistence,
+authentication, project permissions, and deployment. NestJS will be introduced
+after the Next.js foundations are clear, at a point where the backend
+responsibilities are concrete.

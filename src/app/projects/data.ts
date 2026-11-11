@@ -6,6 +6,17 @@ export type ProjectInput = {
 
 export type ProjectStatus = "Awaiting feedback" | "Approved";
 
+export type FeedbackInput = {
+  author: string;
+  message: string;
+};
+
+export type ProjectFeedback = FeedbackInput & {
+  id: string;
+  projectId: string;
+  createdAt: string;
+};
+
 export type Project = {
   id: string;
   name: string;

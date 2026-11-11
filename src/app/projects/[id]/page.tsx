@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProjects } from "../store";
+import { getProjectFeedback } from "../feedback-store";
+import FeedbackForm from "./FeedbackForm";
 import ProjectStatusForm from "./ProjectStatusForm";
 
 export default async function ProjectPage({
@@ -16,6 +18,8 @@ export default async function ProjectPage({
     notFound();
   }
 
+  const feedback = await getProjectFeedback(project.id);
+
   return (
     <main id="main-content" className="page">
       <Link href="/projects">Back to projects</Link>
@@ -28,6 +32,36 @@ export default async function ProjectPage({
         <dd>{project.status}</dd>
       </dl>
       <ProjectStatusForm key={project.id} projectId={project.id} status={project.status} />
+
+      <section className="feedback-section" aria-labelledby="feedback-heading">
+        <h2 id="feedback-heading">Feedback</h2>
+        <p className="lead">Share what works and what needs another pass.</p>
+        <FeedbackForm key={project.id} projectId={project.id} />
+
+        <h3 className="feedback-history-heading">Feedback history</h3>
+        {feedback.length === 0 ? (
+          <p className="lead">No feedback yet. Add the first note above.</p>
+        ) : (
+          <ol className="feedback-list" aria-label="Feedback history">
+            {feedback.map((entry) => (
+              <li key={entry.id}>
+                <div className="feedback-meta">
+                  <strong>{entry.author}</strong>
+                  <time dateTime={entry.createdAt}>
+                    {new Date(entry.createdAt).toLocaleString("en-GB", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                      timeZone: "UTC",
+                    })}{" "}
+                    UTC
+                  </time>
+                </div>
+                <p className="feedback-message">{entry.message}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
     </main>
   );
 }

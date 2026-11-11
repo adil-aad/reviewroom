@@ -177,6 +177,22 @@ nav { display: flex; gap: 1.5rem; }
 .form-error { color: #a32127; }
 .form-success { color: var(--accent); }
 
+.feedback-section {
+  max-width: 44rem;
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+
+.feedback-section > .lead { margin-top: 0.75rem; }
+.feedback-history-heading { margin-top: 3rem; }
+.feedback-list { margin-top: 1rem; padding: 0; list-style: none; }
+.feedback-list li { padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
+.feedback-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.feedback-meta strong { overflow-wrap: anywhere; }
+.feedback-meta time { color: var(--muted); font-size: 0.875rem; }
+.feedback-message { margin-top: 0.75rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .skip-link {
   position: absolute;
   top: -6rem;
