@@ -186,7 +186,6 @@ nav { display: flex; gap: 1.5rem; }
 
 .feedback-section > .lead { margin-top: 0.75rem; }
 .feedback-history-heading { margin-top: 3rem; }
-.feedback-download { margin-top: 0.75rem; }
 .feedback-list { margin-top: 1rem; padding: 0; list-style: none; }
 .feedback-list li { padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
 .feedback-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }

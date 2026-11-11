@@ -39,9 +39,6 @@ export default async function ProjectPage({
         <FeedbackForm key={project.id} projectId={project.id} />
 
         <h3 className="feedback-history-heading">Feedback history</h3>
-        <p className="feedback-download">
-          <a href={`/projects/${project.id}/feedback`} download>Download feedback</a>
-        </p>
         {feedback.length === 0 ? (
           <p className="lead">No feedback yet. Add the first note above.</p>
         ) : (
