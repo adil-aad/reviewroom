@@ -4,7 +4,8 @@ A client feedback and approval portal we are building to learn Next.js, then
 NestJS. You can create projects, update their status with Server Actions,
 filter the project list, and open individual project pages. Two example
 projects are included; saved projects live in local JSON files. Database
-access comes later.
+access comes later. Project routes include loading feedback and a recovery
+screen for unexpected rendering errors.
 
 ## Run locally
 
@@ -29,6 +30,8 @@ src/app/
   page.tsx             Homepage at /
   projects/
     page.tsx           Projects page at /projects
+    loading.tsx        Loading fallback for project routes
+    error.tsx          Unexpected rendering errors and a retry button
     ProjectList.tsx    Interactive list and status filter
     data.ts            Example projects and shared TypeScript types
     store.ts           Server-only reading and saving of local project files
@@ -200,6 +203,71 @@ After saving, the action calls `revalidatePath` for both `/projects` and the
 specific detail URL. This refreshes the displayed status and makes the list's
 filter use the updated data. We return a success message and stay on the
 detail page; this action does not need `redirect()`.
+
+## Milestone 6: Loading and error boundaries
+
+The project pages read data asynchronously on the server. Next.js can display
+`projects/loading.tsx` while a project route is waiting to finish rendering,
+then replace it with the completed page. This is **streaming**: the browser
+can receive the layout and loading UI before the page content is ready.
+
+Adding this special file makes Next.js place a React **Suspense boundary**
+around the page and nested routes. We do not import `ProjectsLoading` into
+either page or manage an `isLoading` state variable. It is a Server Component
+by default, and `role="status"` marks its loading message for assistive
+technology. Local file reads are fast and navigation may reuse prefetched
+content, so this message will not necessarily be visible on every visit.
+
+`projects/error.tsx` supplies the fallback for a React **error boundary**.
+For example, if `getProjects()` cannot parse a saved JSON file, that exception
+prevents the page from rendering. Next.js displays our recovery screen in
+place of the failed content. The root layout's navigation remains available.
+This boundary covers `/projects` and its nested routes; it does not catch
+errors in a layout above it or errors thrown inside ordinary event handlers.
+
+Error components must use `"use client"`. Next.js passes recovery functions
+to the component as props, and our button calls `retry()`. In this installed
+Next.js version, `retry()` fetches fresh server content and attempts to render
+the route again. `reset()` only clears the boundary's error state and
+re-renders its children without fetching fresh content. A retry can recover
+after a temporary failure, but cannot repair a damaged file by itself.
+
+We show a helpful message instead of displaying the raw exception. The server
+logs retain the original error for debugging; production Server Component
+errors sent to the browser have their details hidden by Next.js.
+
+These mechanisms handle different situations:
+
+| Situation in ReviewRoom | UI mechanism |
+| --- | --- |
+| A project page is still rendering | `loading.tsx` |
+| A page throws an unexpected error | `error.tsx` |
+| The requested project does not exist | `[id]/not-found.tsx`, reached through `notFound()` |
+| Submitted form fields are invalid | An action returns feedback through `useActionState` |
+| A form submission is running | The form's `pending` value from `useActionState` |
+
+### Explore these states locally
+
+For a loading experiment, temporarily add the following as the first line
+inside `getProjects()` in `projects/store.ts` while running the development
+server:
+
+```ts
+await new Promise((resolve) => setTimeout(resolve, 2000));
+```
+
+Reload `/projects` to see the loading message followed by the list. The shared
+Home link remains available while the page loads. Remove the delay afterward.
+
+For an error experiment, temporarily add `throw new Error("Lesson error")`
+after `await connection()` in `projects/page.tsx`. Visit `/projects` to reach
+the error boundary. Development mode also shows Next.js's debugging overlay;
+dismiss it to see our fallback. Remove the throw afterward. Hot reload may
+recover automatically when the source is corrected; in production, **Try
+again** requests fresh content without requiring a full browser reload.
+
+Visiting `/projects/missing-project` still shows **Project not found**, and
+ordinary form validation still appears beside the form.
 
 ## Startup files
 
