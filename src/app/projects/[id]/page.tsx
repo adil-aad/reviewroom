@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProjects } from "../store";
+import { getProject } from "../store";
 import { getProjectFeedback } from "../feedback-store";
 import FeedbackForm from "./FeedbackForm";
 import ProjectStatusForm from "./ProjectStatusForm";
@@ -11,8 +11,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const projects = await getProjects();
-  const project = projects.find((project) => project.id === id);
+  const project = await getProject(id);
 
   if (!project) {
     notFound();

@@ -9,6 +9,7 @@ import {
   type ProjectInput,
   type ProjectStatus,
 } from "./data";
+import { getDatabase } from "./database";
 
 const projectDirectory = path.join(process.cwd(), ".local-data", "projects");
 
@@ -24,6 +25,16 @@ async function writeProject(filename: string, project: Project) {
 }
 
 export async function getProjects(): Promise<Project[]> {
+  const sql = getDatabase();
+  if (sql) {
+    const rows = await sql`
+      SELECT id, name, client, status, description
+      FROM projects
+      ORDER BY created_at DESC, id ASC
+    `;
+    return rows as Project[];
+  }
+
   let filenames: string[];
 
   try {
@@ -53,12 +64,37 @@ export async function getProjects(): Promise<Project[]> {
   return [...savedProjects, ...unsavedSamples];
 }
 
+export async function getProject(id: string): Promise<Project | null> {
+  const sql = getDatabase();
+  if (sql) {
+    const rows = await sql`
+      SELECT id, name, client, status, description
+      FROM projects
+      WHERE id = ${id}
+    `;
+    return (rows[0] as Project | undefined) ?? null;
+  }
+
+  const projects = await getProjects();
+  return projects.find((project) => project.id === id) ?? null;
+}
+
 export async function saveProject(input: ProjectInput): Promise<Project> {
   const project: Project = {
     ...input,
     id: randomUUID(),
     status: "Awaiting feedback",
   };
+
+  const sql = getDatabase();
+  if (sql) {
+    const rows = await sql`
+      INSERT INTO projects (id, name, client, status, description)
+      VALUES (${project.id}, ${project.name}, ${project.client}, ${project.status}, ${project.description})
+      RETURNING id, name, client, status, description
+    `;
+    return rows[0] as Project;
+  }
 
   await mkdir(projectDirectory, { recursive: true });
   const filename = path.join(projectDirectory, `${Date.now()}-${project.id}.json`);
@@ -71,8 +107,18 @@ export async function updateProjectStatus(
   id: string,
   status: ProjectStatus,
 ): Promise<Project | null> {
-  const projects = await getProjects();
-  const project = projects.find((project) => project.id === id);
+  const sql = getDatabase();
+  if (sql) {
+    const rows = await sql`
+      UPDATE projects
+      SET status = ${status}
+      WHERE id = ${id}
+      RETURNING id, name, client, status, description
+    `;
+    return (rows[0] as Project | undefined) ?? null;
+  }
+
+  const project = await getProject(id);
 
   if (!project) {
     return null;

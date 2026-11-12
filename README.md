@@ -3,8 +3,9 @@
 A client feedback and approval portal we are building to learn Next.js, then
 NestJS. You can create projects, update their status with Server Actions,
 filter the project list with a shareable URL, and add feedback on individual
-project pages. Two example projects are included; saved projects and feedback
-live in local JSON files. Database access comes later. Project routes include
+project pages. Two example projects are included. By default, saved projects and
+feedback live in local JSON files; an optional Neon PostgreSQL connection stores
+them in a database instead. Project routes include
 loading feedback and a recovery screen for unexpected rendering errors.
 
 ## Run locally
@@ -34,8 +35,9 @@ src/app/
     error.tsx          Unexpected rendering errors and a retry button
     ProjectList.tsx    Interactive list and status filter
     data.ts            Example projects and shared TypeScript types
-    store.ts           Server-only reading and saving of local project files
-    feedback-store.ts  Server-only reading and saving of project feedback
+    database.ts        Server-only Neon connection, when configured
+    store.ts           Server-only project queries or local file storage
+    feedback-store.ts  Server-only feedback queries or local file storage
     new/
       page.tsx         Create-project page at /projects/new
       NewProjectForm.tsx  Form, validation feedback, and pending state
@@ -55,6 +57,9 @@ name does not determine the URL; the file location does.
 Navigation uses `Link` from `next/link`. It links to another route and lets
 Next.js handle navigation within the app. Our source page and layout files are
 Server Components by default.
+
+The earlier milestones describe the local JSON mode. Milestone 9 adds optional
+database storage while keeping the same form and page components.
 
 ## Milestone 2: Server and Client Components
 
@@ -94,8 +99,9 @@ The folder `[id]` captures one part of the URL. Both of these URLs use
 
 Next.js passes that value through the page's `params` prop. In this Next.js
 version, `params` is a Promise, so the page is an `async` function and reads it
-with `const { id } = await params`. It reads the available projects, then uses
-`.find()` to select the matching project and render its details.
+with `const { id } = await params`. It uses
+`getProject(id)` to select the matching project and render its details. In local
+mode, that helper uses `.find()`; in database mode, it queries that ID directly.
 
 The detail page is a Server Component. Reading an ID from the URL does not
 require `"use client"`. This page currently renders on demand; we will study
@@ -432,6 +438,141 @@ checks will be a later milestone before using this as a private client portal.
 5. Open a different project. It has its own feedback history.
 6. Submit a whitespace-only message. The form asks you to correct it.
 
+## Milestone 9: Optional PostgreSQL persistence
+
+**Neon** hosts a **PostgreSQL database**. PostgreSQL stores related records in
+tables and lets us query them with SQL. Neon saves us from installing and
+maintaining a PostgreSQL server locally. It is a provider choice, not a Next.js
+requirement. The Neon HTTP driver used here is configured for Neon, rather than
+an ordinary local PostgreSQL connection.
+
+You can keep running ReviewRoom without an account or connection string. The
+JSON store already persists data locally. A database is our next backend lesson:
+it lets us query one project's feedback directly, enforce relationships, and
+keep records independently of the web server's disk when we deploy.
+
+### Where the database fits
+
+The existing React forms, `useActionState`, Server Actions, and revalidation
+flow still do the same jobs:
+
+```text
+React form -> Server Action -> store function -> PostgreSQL
+                       <- result and refreshed server-rendered page
+```
+
+`database.ts` reads `process.env.DATABASE_URL` and creates a Neon query function.
+It imports `server-only`, so importing it from a Client Component is an error.
+An unset or blank URL returns `null`, selecting our local store. Once a URL is
+configured, the stores use PostgreSQL; connection or query failures reach the
+existing error boundary or action feedback. A failed database write never
+switches silently to a local file.
+
+Next.js loads `.env.local` from the project root, even though our code is under
+`src/`. `DATABASE_URL` has no `NEXT_PUBLIC_` prefix: that prefix would expose a
+variable to the browser. The connection string stays on the server and is
+excluded from Git. Only the blank `.env.example` is committed.
+
+Server Components can await database queries directly. The list still reads
+`getProjects()` and passes plain project objects to `ProjectList`. The detail
+page now calls `getProject(id)`, which uses `WHERE id = ...` in database mode
+instead of reading every project. Neither page needs a browser fetch or a new
+API endpoint. NestJS comes later, when we give a separate backend ownership of
+these responsibilities.
+
+### Tables and queries
+
+`db/schema.sql` defines our initial schema:
+
+| Table | Key and relationship | Important fields |
+| --- | --- | --- |
+| `projects` | `id` is the primary key | Name, client, description, status, creation time |
+| `project_feedback` | `id` is the primary key; `project_id` references `projects.id` | Author, message, creation time |
+
+A **primary key** identifies one row and prevents duplicate IDs. A **foreign
+key** requires every feedback row to reference an existing project. `CHECK`
+constraints enforce allowed statuses and text lengths, in addition to our
+Server Actions' validation. An index on the feedback's project ID and timestamp
+helps retrieve that project's history in order.
+
+The stores use `SELECT` to read, `INSERT` to create, and `UPDATE` to change a
+status. `RETURNING` supplies the saved row in the same query. Values in a Neon
+tagged template are query parameters:
+
+```ts
+const rows = await sql`
+  SELECT id, name, client, status, description
+  FROM projects
+  WHERE id = ${id}
+`;
+```
+
+Here, `sql` is a function receiving the template, not an ordinary interpolated
+string. Neon sends `id` separately from the SQL, so quotes or SQL-like user input
+stay data. Type assertions describe the returned rows to TypeScript; the table
+schema enforces their database types and constraints.
+
+Feedback insertion selects the matching project in the same statement and
+returns `null` if it is missing. PostgreSQL generates creation timestamps on
+new rows. The feedback reader aliases `project_id` to `projectId` and converts
+the timestamp to an ISO string for the existing UI. History is newest first,
+with the ID breaking timestamp ties.
+
+### Enable the database when ready
+
+1. Create a development database in [Neon](https://console.neon.tech/) and copy
+   its PostgreSQL connection string.
+2. Copy `.env.example` to `.env.local` at the project root. Set `DATABASE_URL`
+   to the connection string. Keep the secret out of chat and Git.
+3. Stop the development server and run `npm.cmd run db:setup` from the project
+   root. This creates the tables and imports your local projects and feedback,
+   preserving their IDs and timestamps where available. Locally edited starter
+   projects take precedence over `db/seed.sql`'s examples during the first import.
+4. Start `npm.cmd run dev` again. Create a project, change its status, and add
+   feedback. Reload and restart the server to verify the saved records.
+5. Inspect `projects` and `project_feedback` in Neon's Tables view. New app
+   writes appear there and no longer create local JSON records.
+
+`scripts/setup-database.mjs` runs outside Next.js, so it uses `@next/env` to load
+the same environment files. It sends the schema, imported records, and starter
+examples in one **transaction**: all succeed, or all roll back. Invalid local
+records cause a failure without deleting the source files.
+
+Repeating `db:setup` skips existing IDs and imports missing ones. It preserves
+subsequent database edits; it does not synchronize updates back and forth with
+local files. The `IF NOT EXISTS` statements initialize this schema but do not
+alter existing table definitions. Future schema changes need migrations.
+
+To return to local mode, clear `DATABASE_URL` and restart the server. The old
+JSON files remain, but records created or changed in PostgreSQL will not be
+copied back. Each mode uses its own storage source.
+
+Authentication and access checks are still a later milestone. The database's
+foreign key ensures a project exists; it does not establish who may view or
+edit it. Feedback names remain unverified display names.
+
+### Follow one request through the code
+
+Start with `projects/[id]/page.tsx`: it awaits the route's `params`, then awaits
+`getProject(id)`. In `store.ts`, follow the `getDatabase()` branch to the SQL
+query. The returned project becomes JSX on the server; the browser receives
+the rendered result and the props needed by the interactive forms.
+
+Then follow `addProjectFeedback` in `[id]/actions.ts`. The browser submits
+`FormData`, the action validates it, and `saveProjectFeedback` inserts the row.
+`revalidatePath` refreshes the detail page, whose next query includes that note.
+The React form still uses `useActionState`; changing storage does not require
+an effect, a client fetch, or a second copy of the feedback history in state.
+
+### Milestone validation
+
+The production build and TypeScript checks passed. Browser checks covered
+project creation, status changes, feedback validation, and local persistence
+after a server restart. SQL queries and setup were exercised with PGlite, a
+local PostgreSQL engine, including parameterized input, constraints, repeated
+imports, and transaction rollback. Hosted Neon connectivity remains to be
+checked once a development `DATABASE_URL` is configured.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
@@ -452,6 +593,8 @@ checks will be a later milestone before using this as a private client portal.
 `npm.cmd run dev` starts the development server with automatic updates when
 source files change. `npm.cmd run build` prepares a production build;
 `npm.cmd start` serves that build. `npm.cmd run typecheck` checks TypeScript.
+`npm.cmd run db:setup` initializes the configured development database and
+imports local records; it requires `DATABASE_URL`.
 
 ## Try it
 
@@ -489,7 +632,8 @@ own the dedicated API, business logic, and database access. Next.js will continu
 to serve the React application and can request data from that API.
 
 We now have project creation, status updates, a URL filter, and project feedback
-with local persistence. Future lessons will cover database persistence,
-authentication, project permissions, and deployment. NestJS will be introduced
+with local persistence and optional PostgreSQL storage. Future lessons will
+cover authentication, project permissions, schema migrations, and deployment.
+NestJS will be introduced
 after the Next.js foundations are clear, at a point where the backend
 responsibilities are concrete.

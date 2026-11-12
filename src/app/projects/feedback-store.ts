@@ -4,11 +4,29 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FeedbackInput, ProjectFeedback } from "./data";
-import { getProjects } from "./store";
+import { getDatabase } from "./database";
+import { getProject } from "./store";
 
 const feedbackDirectory = path.join(process.cwd(), ".local-data", "feedback");
 
+type FeedbackRow = Omit<ProjectFeedback, "createdAt"> & { createdAt: Date | string };
+
+function toFeedback(row: FeedbackRow): ProjectFeedback {
+  return { ...row, createdAt: new Date(row.createdAt).toISOString() };
+}
+
 export async function getProjectFeedback(projectId: string): Promise<ProjectFeedback[]> {
+  const sql = getDatabase();
+  if (sql) {
+    const rows = await sql`
+      SELECT id, project_id AS "projectId", author, message, created_at AS "createdAt"
+      FROM project_feedback
+      WHERE project_id = ${projectId}
+      ORDER BY created_at DESC, id DESC
+    `;
+    return (rows as FeedbackRow[]).map(toFeedback);
+  }
+
   let filenames: string[];
 
   try {
@@ -38,8 +56,21 @@ export async function saveProjectFeedback(
   projectId: string,
   input: FeedbackInput,
 ): Promise<ProjectFeedback | null> {
-  const projects = await getProjects();
-  if (!projects.some((project) => project.id === projectId)) {
+  const sql = getDatabase();
+  if (sql) {
+    // Selecting the project and inserting happen in one SQL statement.
+    const rows = await sql`
+      INSERT INTO project_feedback (id, project_id, author, message)
+      SELECT ${randomUUID()}::uuid, id, ${input.author}, ${input.message}
+      FROM projects
+      WHERE id = ${projectId}
+      RETURNING id, project_id AS "projectId", author, message, created_at AS "createdAt"
+    `;
+    const row = rows[0] as FeedbackRow | undefined;
+    return row ? toFeedback(row) : null;
+  }
+
+  if (!(await getProject(projectId))) {
     return null;
   }
 
