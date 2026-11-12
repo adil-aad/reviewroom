@@ -32,7 +32,9 @@ async function readLocalRecords(folder, fields) {
 }
 
 async function setupDatabase() {
-  const connectionString = process.env.DATABASE_URL?.trim();
+  // Schema setup uses the direct URL; ordinary app queries use DATABASE_URL.
+  const connectionString = process.env.DATABASE_URL_UNPOOLED?.trim()
+    || process.env.DATABASE_URL?.trim();
   if (!connectionString) {
     console.error("Set DATABASE_URL in .env.local before running db:setup. The app can still use local files.");
     process.exitCode = 1;

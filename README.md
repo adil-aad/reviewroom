@@ -440,7 +440,8 @@ checks will be a later milestone before using this as a private client portal.
 
 ## Milestone 9: Optional PostgreSQL persistence
 
-**Neon** hosts a **PostgreSQL database**. PostgreSQL stores related records in
+**Neon** hosts **Lakebase Postgres**, a PostgreSQL-compatible database.
+PostgreSQL stores related records in
 tables and lets us query them with SQL. Neon saves us from installing and
 maintaining a PostgreSQL server locally. It is a provider choice, not a Next.js
 requirement. The Neon HTTP driver used here is configured for Neon, rather than
@@ -520,18 +521,43 @@ with the ID breaking timestamp ties.
 
 ### Enable the database when ready
 
-1. Create a development database in [Neon](https://console.neon.tech/) and copy
-   its PostgreSQL connection string.
-2. Copy `.env.example` to `.env.local` at the project root. Set `DATABASE_URL`
-   to the connection string. Keep the secret out of chat and Git.
-3. Stop the development server and run `npm.cmd run db:setup` from the project
+The Neon CLI links this workspace to project `solitary-sound-72125343` in
+organization `org-lucky-fire-94890121`, using its `production` database branch.
+The gitignored `.neon` file stores that local selection. `neon.ts` is the
+committed service configuration; this milestone uses Postgres, which every
+Neon project includes, and keeps ReviewRoom's existing server-side queries.
+
+1. Install the CLI with `npm.cmd i -g neon@latest`. Run `neon login` yourself
+   and complete the browser sign-in using the account that owns the project.
+2. From the project root, link the workspace if it is not already linked:
+
+   ```powershell
+   neon link -y --org-id org-lucky-fire-94890121 --project-id solitary-sound-72125343 --branch production
+   ```
+
+3. Run `neon config plan` to inspect the configuration, then `neon deploy`.
+   Deployment applies `neon.ts` to that branch and pulls `DATABASE_URL` and
+   `DATABASE_URL_UNPOOLED` into `.env.local` (or `.env` if it already exists).
+   These files are excluded from Git. It configures backend services; Next.js
+   still runs with its own start command.
+4. Stop the development server and run `npm.cmd run db:setup` from the project
    root. This creates the tables and imports your local projects and feedback,
    preserving their IDs and timestamps where available. Locally edited starter
    projects take precedence over `db/seed.sql`'s examples during the first import.
-4. Start `npm.cmd run dev` again. Create a project, change its status, and add
+5. Start `npm.cmd run dev` again. Create a project, change its status, and add
    feedback. Reload and restart the server to verify the saved records.
-5. Inspect `projects` and `project_feedback` in Neon's Tables view. New app
+6. Inspect `projects` and `project_feedback` in Neon's Tables view. New app
    writes appear there and no longer create local JSON records.
+
+The app keeps its existing `@neondatabase/serverless` HTTP driver: each store
+operation is one parameterized query, without a persistent connection pool.
+The setup script uses `DATABASE_URL_UNPOOLED` for schema work, falling back to
+`DATABASE_URL` when only that variable is supplied. Future app hosting choices
+may call for a different driver; keep database access on the server.
+
+The additional skills installer invoked by `neon init` requires Node.js 22.20
+or newer. The CLI can still create its config and install the Neon plugin
+before reporting that version error; inspect the generated files before retrying.
 
 `scripts/setup-database.mjs` runs outside Next.js, so it uses `@next/env` to load
 the same environment files. It sends the schema, imported records, and starter
@@ -566,12 +592,20 @@ an effect, a client fetch, or a second copy of the feedback history in state.
 
 ### Milestone validation
 
-The production build and TypeScript checks passed. Browser checks covered
-project creation, status changes, feedback validation, and local persistence
-after a server restart. SQL queries and setup were exercised with PGlite, a
-local PostgreSQL engine, including parameterized input, constraints, repeated
-imports, and transaction rollback. Hosted Neon connectivity remains to be
-checked once a development `DATABASE_URL` is configured.
+The production build and TypeScript checks passed with Neon's `.env.local`.
+Deployment confirmed that the `production` branch matched `neon.ts` and pulled
+its environment variables. Initial setup added 3 projects and 2 feedback entries;
+running setup again added none. All 5 local records were confirmed in Neon.
+
+Browser checks against the production Next.js server covered project creation,
+status changes, feedback validation, pending states, form reset, ordering,
+project isolation, and persistence after a server restart. Independent Neon
+queries confirmed the browser-created project's Approved status and both notes,
+while the local JSON files stayed unchanged. Temporary test records were removed.
+
+SQL queries and setup were also exercised with PGlite, a local PostgreSQL engine,
+including parameterized input, constraints, repeated imports, transaction
+rollback, and selection of the direct URL for schema setup.
 
 ## Startup files
 
