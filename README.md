@@ -7,6 +7,9 @@ project pages. Two example projects are included. By default, saved projects and
 feedback live in local JSON files; an optional Neon PostgreSQL connection stores
 them in a database instead. Project routes include
 loading feedback and a recovery screen for unexpected rendering errors.
+Our first NestJS lesson adds a separate API in `backend/`, with a `/health`
+endpoint. Next.js still handles the existing project and feedback operations;
+we will move them into NestJS one working step at a time.
 
 ## Run locally
 
@@ -607,6 +610,185 @@ SQL queries and setup were also exercised with PGlite, a local PostgreSQL engine
 including parameterized input, constraints, repeated imports, transaction
 rollback, and selection of the direct URL for schema setup.
 
+## Milestone 10: Starting the NestJS backend
+
+NestJS is a framework for a server application. Next.js currently renders our
+React pages and performs database operations. We are now introducing a separate
+NestJS process that will gradually take ownership of the API and database work.
+The first step is an HTTP endpoint that confirms the new server can respond.
+
+### Run the two applications
+
+The backend has its own `package.json` and lockfile. From the repository root,
+install its packages once:
+
+```powershell
+cd backend
+npm.cmd install
+cd ..
+```
+
+Keep Next.js running in one terminal with `npm.cmd run dev`. In a second
+terminal, also at `D:\reviewroom`, run:
+
+```powershell
+npm.cmd run api:dev
+```
+
+Next.js normally uses port **3000**. Our API listens on **3001** at `127.0.0.1`,
+so the two processes can run together on your machine. A port identifies which
+server should receive a request to the same computer.
+
+Open http://127.0.0.1:3001/health in a browser. It returns HTTP status **200**
+with this JSON body:
+
+```json
+{ "status": "ok", "service": "reviewroom-api" }
+```
+
+This endpoint confirms that Nest can handle a request. It does not query Neon
+or check database connectivity. Next.js and NestJS are not connected yet.
+
+### The four source files
+
+```text
+backend/
+  package.json          Backend packages and commands
+  package-lock.json     Exact installed dependency versions
+  tsconfig.json         Backend TypeScript compilation settings
+  src/
+    main.ts             Creates the application and starts listening
+    app.module.ts       Registers the controller and service
+    health.controller.ts  Defines GET /health
+    health.service.ts   Supplies the health response
+```
+
+**1. Bootstrap: `main.ts`**
+
+`bootstrap()` is an ordinary async function. Its name is a convention; the
+`void bootstrap()` call at the end runs it. `void` discards the returned Promise;
+it does not change what the function does or catch errors.
+
+`NestFactory.create(AppModule)` builds a Nest application from the root module.
+`app.listen(3001, "127.0.0.1")` starts accepting local HTTP requests. Unlike a
+Next.js `page.tsx`, this file does not render a React component.
+`enableShutdownHooks()` lets Nest run cleanup hooks when the process receives
+supported shutdown signals. Ctrl+C stops the development command.
+
+**2. Registration: `app.module.ts`**
+
+`@Module(...)` is a **decorator**: a function that attaches information to the
+class beneath it. Nest reads that information to assemble the application.
+
+The `controllers` array registers classes that handle HTTP requests. The
+`providers` array registers dependencies Nest can create and supply, including
+our `HealthService`. `AppModule` is the root module because we pass it to
+`NestFactory.create`. Later, a projects module can group the project's related
+controller and service together.
+
+**3. Routing: `health.controller.ts`**
+
+`@Controller("health")` establishes the URL prefix `/health`. `@Get()` on the
+method establishes the HTTP method and adds no further path, giving us
+`GET /health`. A browser's address bar sends a GET request when opening this URL.
+The class and method names do not determine the URL; the decorators do.
+
+The constructor asks Nest for a `HealthService`:
+
+```ts
+constructor(private readonly healthService: HealthService) {}
+```
+
+This TypeScript shorthand declares a private instance property and assigns the
+constructor argument to it. `readonly` prevents our code from reassigning the
+property. Nest creates the registered service and passes it into the constructor;
+we do not call `new HealthService()` in the controller. This is **dependency
+injection**: a class receives the dependency it needs from outside itself.
+
+The handler calls `this.healthService.getHealth()` and returns its result.
+Nest's default Express adapter serializes that plain object to JSON and sends
+the HTTP response. There is no JSX or `"use server"` directive in the backend.
+
+**4. Providing the result: `health.service.ts`**
+
+`@Injectable()` attaches metadata so the class can participate in Nest's
+dependency injection system. Registering it in `AppModule.providers` makes it
+available to our controller. Its `getHealth()` method currently returns a
+constant object. We use a small service here to see how injection works; the
+projects service will perform the real database work in the next milestone.
+
+Follow the complete request:
+
+```text
+Browser GET http://127.0.0.1:3001/health
+  -> HealthController.getHealth()
+  -> HealthService.getHealth()
+  -> plain object
+  -> Nest sends HTTP 200 and JSON to the browser
+```
+
+The root module participates at startup by registering these classes; it is
+not a method that runs between the controller and service on every request.
+
+### Packages and TypeScript
+
+`@nestjs/core` builds the app and manages dependency injection. `@nestjs/common`
+provides decorators such as `Module`, `Controller`, `Get`, and `Injectable`.
+`@nestjs/platform-express` connects Nest to Express for HTTP handling.
+`reflect-metadata` supports runtime metadata, and `rxjs` supports Nest's
+observable-based internals. TypeScript compiles our backend, and `tsc-watch`
+recompiles it during development and runs the resulting server. We can create
+these few files directly without a Nest CLI installation.
+
+Nest uses TypeScript's decorator settings. `experimentalDecorators` enables
+its decorator syntax, and `emitDecoratorMetadata` preserves information such
+as constructor parameter types for dependency injection. We import
+`reflect-metadata` before creating the application.
+
+The backend compiles TypeScript to CommonJS JavaScript in `backend/dist/`, which
+Node executes. That generated directory is ignored by Git. Next.js has its own
+compiler settings, so the root `tsconfig.json` excludes `backend/`. Each
+application checks its own source using its own configuration.
+
+`api:dev` runs `tsc-watch`: it recompiles and restarts the API after a successful
+compilation when backend source changes. The root `api:*` scripts use `npm --prefix backend`
+to run commands from the backend package. For a production-style local run:
+
+```powershell
+npm.cmd run api:build
+npm.cmd run api:start
+```
+
+`api:build` creates `backend/dist/`; `api:start` runs `dist/main.js` without
+watching source files. `npm.cmd run api:typecheck` checks the backend without
+generating JavaScript. Stop `api:dev` before `api:start`, since both use port 3001.
+
+### Try the first endpoint
+
+1. Start `npm.cmd run api:dev` and open `/health` on port 3001.
+2. Find the returned `service` value in `health.service.ts`.
+3. Temporarily change that value, save, and reload the browser. Watch mode
+   restarts the server and the JSON reflects your change. Restore it afterward.
+4. Visit `/missing` on port 3001. Nest returns HTTP 404 because no controller
+   handles that path.
+5. Follow the controller's constructor to `AppModule.providers` to see where
+   its service is registered.
+
+### Milestone validation
+
+The NestJS build and the existing Next.js production build passed, including
+TypeScript checking. HTTP checks against the compiled API confirmed `/health`
+returns status 200 and the expected JSON, and an unknown route returns 404.
+Development mode was checked by temporarily changing the service response:
+the watcher recompiled and restarted the API, and the HTTP response changed.
+Restoring the source triggered another restart and restored the original JSON.
+Backend dependency installation completed without engine warnings or reported
+vulnerabilities after selecting the compatible TypeScript watcher.
+
+The next milestone adds `GET /projects` and `GET /projects/:id` backed by Neon.
+Once those endpoints work, we will connect the Next.js Server Components to
+them, then move project creation, status changes, and feedback in later steps.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
@@ -629,6 +811,8 @@ source files change. `npm.cmd run build` prepares a production build;
 `npm.cmd start` serves that build. `npm.cmd run typecheck` checks TypeScript.
 `npm.cmd run db:setup` initializes the configured development database and
 imports local records; it requires `DATABASE_URL`.
+`npm.cmd run api:dev` starts the separate NestJS backend after installing its
+dependencies with `npm.cmd install` from the `backend/` directory.
 
 ## Try it
 
@@ -660,14 +844,14 @@ inspect what changed at a particular step.
 
 ## Architecture we will build toward
 
-Initially, Next.js will handle the web application and its server work. When we
-introduce a database, its credentials will stay on the server. Later, NestJS will
-own the dedicated API, business logic, and database access. Next.js will continue
-to serve the React application and can request data from that API.
+Next.js currently handles the web application and project database operations.
+NestJS now runs independently with its first health endpoint. Next, we will move
+project reads into Nest controllers and services, then have Next.js request that
+data over HTTP. Later steps will move the remaining database operations and
+business logic into NestJS. Database credentials stay on the server throughout.
 
 We now have project creation, status updates, a URL filter, and project feedback
 with local persistence and optional PostgreSQL storage. Future lessons will
 cover authentication, project permissions, schema migrations, and deployment.
-NestJS will be introduced
-after the Next.js foundations are clear, at a point where the backend
-responsibilities are concrete.
+Our NestJS lessons have now started, using those existing backend
+responsibilities as the examples we will move across.

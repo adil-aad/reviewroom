@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "db:setup": "node scripts/setup-database.mjs"
+    "db:setup": "node scripts/setup-database.mjs",
+    "api:dev": "npm --prefix backend run dev",
+    "api:build": "npm --prefix backend run build",
+    "api:start": "npm --prefix backend start",
+    "api:typecheck": "npm --prefix backend run typecheck"
   },
   "dependencies": {
     "@neon/config": "^1.14.0",
