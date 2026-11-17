@@ -4,6 +4,8 @@
 
 [![Build web and API](https://github.com/adil-aad/reviewroom/actions/workflows/ci.yml/badge.svg)](https://github.com/adil-aad/reviewroom/actions/workflows/ci.yml)
 
+[Live demo](https://reviewroom-opal.vercel.app) · [API health](https://reviewroom-api.vercel.app/health) · [Projects API](https://reviewroom-api.vercel.app/projects)
+
 ReviewRoom is a client feedback and approval portal for freelancers and small
 studios. Create a project, collect feedback beside the work, and move it from
 **Awaiting feedback** to **Approved**.
@@ -197,6 +199,10 @@ disk and is intended for local development.
 Vercel detects the API's `src/main.ts` entrypoint and provides its listening
 port. Both projects use Node.js 22.x. See [the NestJS hosting guide](https://vercel.com/docs/frameworks/backend/nestjs)
 and [the Next.js hosting guide](https://vercel.com/docs/frameworks/full-stack/nextjs).
+
+The live projects are connected to GitHub with the root directories above.
+Pushing `main` triggers production deployments; pull requests can get preview
+deployments. The public demo shares sample data and uses its own Neon branch.
 
 ## Learn from the code
 

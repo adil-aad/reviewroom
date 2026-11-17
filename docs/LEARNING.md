@@ -988,6 +988,19 @@ environment variable supplies the connection directly to the process.
 in a transaction and skips existing sample IDs, so repeating the command does
 not erase records or duplicate examples.
 
+### Public release validation
+
+GitHub's web and API build workflow passed. Public browser checks covered
+project creation, approval changes, and feedback submissions. Independent Neon
+queries confirmed the saved status and feedback; the temporary verification
+project and its note were removed afterward, preserving the sample records.
+The deployed NestJS API returned successful health, list, and detail responses
+and a 404 for a missing project after the ES-module runtime fix.
+
+The live web app is https://reviewroom-opal.vercel.app and the API is
+https://reviewroom-api.vercel.app. Both Vercel projects are linked to GitHub,
+with the API's repository root set to `backend`.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
