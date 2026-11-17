@@ -1,0 +1,6 @@
+backend/
+docs/
+output/
+.local-data/
+.env*
+.neon

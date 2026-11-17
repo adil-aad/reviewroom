@@ -2,12 +2,16 @@
   "name": "reviewroom",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:setup": "node scripts/setup-database.mjs",
+    "db:seed-demo": "node scripts/seed-demo.mjs",
     "api:dev": "npm --prefix backend run dev",
     "api:build": "npm --prefix backend run build",
     "api:start": "npm --prefix backend start",

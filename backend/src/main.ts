@@ -5,8 +5,9 @@ import { AppModule } from "./app.module";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
-  await app.listen(3001, "127.0.0.1");
-  console.log("ReviewRoom API: http://127.0.0.1:3001/health");
+  const port = process.env.PORT ?? 3001;
+  await app.listen(port);
+  console.log(`ReviewRoom API listening on port ${port}`);
 }
 
 void bootstrap();

@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "dependencies": {
     "@nestjs/common": "12.5.0",
