@@ -31,5 +31,3 @@ is the next development milestone.
 
 The public demo uses a separate database with sample data. Authentication and
 project access permissions are planned.
-
-Detailed development notes are in the [learning guide](docs/LEARNING.md).
