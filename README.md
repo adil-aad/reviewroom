@@ -7,9 +7,9 @@ project pages. Two example projects are included. By default, saved projects and
 feedback live in local JSON files; an optional Neon PostgreSQL connection stores
 them in a database instead. Project routes include
 loading feedback and a recovery screen for unexpected rendering errors.
-Our first NestJS lesson adds a separate API in `backend/`, with a `/health`
-endpoint. Next.js still handles the existing project and feedback operations;
-we will move them into NestJS one working step at a time.
+The NestJS API in `backend/` has health and project read endpoints backed by
+Neon. Next.js still performs its existing project and feedback operations
+directly; the next lesson connects its pages to the API.
 
 ## Run locally
 
@@ -789,6 +789,173 @@ The next milestone adds `GET /projects` and `GET /projects/:id` backed by Neon.
 Once those endpoints work, we will connect the Next.js Server Components to
 them, then move project creation, status changes, and feedback in later steps.
 
+## Milestone 11: Reading projects through NestJS
+
+Our API now reads the existing Neon `projects` table. We are introducing the
+HTTP boundary first: Next.js still uses its existing store functions, while
+the new NestJS routes let us inspect the same database records as JSON.
+
+### Run and inspect the API
+
+The backend now also depends on `@nestjs/config` and the same
+`@neondatabase/serverless` driver used by our Next.js store. After pulling this
+milestone, run `npm.cmd install` from `backend/` to install its updated packages.
+From the repository root, start `npm.cmd run api:dev` and open:
+
+| Request | Result |
+| --- | --- |
+| `GET /health` | HTTP 200 and the server's health response |
+| `GET /projects` | HTTP 200 and an array of projects |
+| `GET /projects/brand-identity` | HTTP 200 and that project's object, if it exists |
+| `GET /projects/missing-project` | HTTP 404 when no row has that ID |
+| A project read without working database configuration | HTTP 503 |
+
+Use port 3001, for example http://127.0.0.1:3001/projects. An empty table returns
+`[]` with status 200. A missing project and an unavailable database are different
+outcomes; a database failure does not become a false 404 or an empty list.
+
+### Grouping a feature in a module
+
+The new source files live together:
+
+```text
+backend/src/projects/
+  projects.module.ts      Registers this feature and its configuration dependency
+  projects.controller.ts Defines the two HTTP routes
+  projects.service.ts    Reads Neon records
+  project.ts             Describes the project response fields in TypeScript
+```
+
+`AppModule` now imports `ProjectsModule`. This lets Nest discover its registered
+controller and service. Adding a file alone does not register it with Nest.
+The health controller and service keep their existing registration.
+
+`ProjectsModule` has three arrays:
+
+- `imports` brings in another module's exported dependencies. Here we import
+  the configured `ConfigModule`, which makes `ConfigService` available.
+- `controllers` registers `ProjectsController` to handle HTTP requests.
+- `providers` registers `ProjectsService` for dependency injection.
+
+Modules let us organize related backend responsibilities without putting every
+class directly into the root module. We have not made our providers global;
+the module's explicit imports show where its dependencies come from.
+
+### Loading the existing database configuration
+
+Next.js loads environment files automatically. Our separate NestJS process
+uses `ConfigModule.forRoot(...)` to load the repository root's `.env.local`,
+then `.env`. The first file wins when both define the same key. Environment
+variables supplied directly to the process take precedence over these files.
+This is the backend's explicit two-file configuration; it does not reproduce
+Next.js's additional environment-specific file selection.
+
+The module resolves the root from `__dirname`, which is the directory containing
+that module. Both `backend/src/projects` and the compiled
+`backend/dist/projects` are three directories below the repository root. This
+keeps configuration lookup independent of the terminal's current directory.
+
+The existing root `DATABASE_URL` configures both applications for this lesson.
+No connection string is copied into source code, sent to the browser, or added
+to Git. The Nest project endpoints require Neon configuration; Next.js retains
+its own optional local JSON mode. Use the existing `db:setup` command if the
+database has not been initialized. Reading projects does not initialize or
+change the schema.
+
+### From an HTTP route to a service call
+
+`@Controller("projects")` sets the prefix `/projects`. The controller's
+`@Get()` method handles that path and returns the service's Promise. Nest waits
+for it to resolve, then serializes the result to JSON.
+
+The second method starts with:
+
+```ts
+@Get(":id")
+async getProject(@Param("id") id: string) {
+  const project = await this.projectsService.getProject(id);
+```
+
+`:id` captures a URL segment, and `@Param("id")` supplies it as the method's
+argument. This is the Nest equivalent of capturing an ID with Next.js's `[id]`
+folder. The Nest decorators define the route; the folder and method names do
+not. IDs remain strings because our starter records use values such as
+`brand-identity`, alongside UUIDs for newly created projects.
+
+The service returns a project or `null`. The controller maps `null` to
+`throw new NotFoundException("Project not found.")`. Nest catches that HTTP
+exception and sends a 404 JSON response. This is separate from Next.js's
+`notFound()`, which renders a nearby `not-found.tsx` page.
+
+### Reading Neon in the service
+
+Nest injects `ConfigService` into the service's constructor, just as it injects
+`ProjectsService` into the controller. `getDatabase()` reads and trims
+`DATABASE_URL`, then calls `neon(connectionString)` to obtain a query function.
+The HTTP driver sends database requests without maintaining a persistent pool.
+
+`getProjects()` selects the existing five project fields and orders them by
+creation time, newest first, with ID breaking timestamp ties. `getProject(id)`
+selects one row using:
+
+```ts
+const rows = await sql`
+  SELECT id, name, client, status, description
+  FROM projects
+  WHERE id = ${id}
+`;
+```
+
+The tagged template sends `id` as a query parameter separately from SQL.
+Quotes or SQL-like text in the URL stay data. `rows[0]` supplies the single
+matching row, or the method returns `null` when there is none.
+
+The backend's `Project` type describes the same five fields as the current
+Next.js project type. TypeScript assertions describe rows to the compiler;
+they do not validate JSON or database rows at runtime. PostgreSQL's schema
+continues to enforce its column types, lengths, and allowed statuses.
+
+Both read methods translate missing configuration or database request failures
+into `ServiceUnavailableException`, which produces HTTP 503. A backend log
+provides a configuration/connectivity hint; the response contains a stable
+message rather than a raw driver error or connection string. `/health` remains
+an independent check that the HTTP server responds.
+
+Follow a detail request through the application:
+
+```text
+GET /projects/brand-identity
+  -> ProjectsController.getProject(id)
+  -> ProjectsService.getProject(id)
+  -> ConfigService supplies DATABASE_URL
+  -> parameterized Neon SELECT
+  -> project JSON (200), missing project (404), or unavailable storage (503)
+```
+
+### Try the new routes
+
+1. Open `/projects` on port 3001 and inspect the array.
+2. Copy an ID from the array and open `/projects/<that-id>` on the same port.
+3. Compare that object with the same project in the Next.js UI on port 3000.
+4. Visit `/projects/missing-project` and inspect its 404 JSON response.
+5. Follow `AppModule.imports` to `ProjectsModule`, then follow the controller's
+   constructor to the service and its injected `ConfigService`.
+
+### Milestone validation
+
+The backend build passed with TypeScript checking. HTTP checks against the
+compiled Nest application compared the project list and all 3 detail responses
+with independent Neon reads. Missing and SQL-like IDs returned 404. Absent and
+malformed database configuration returned 503 without exposing configuration
+values, while `/health` continued to return 200.
+
+Simulated database request failures returned 503 for both project routes, and
+successful reads resumed after restoring connectivity. Verification queried
+existing records without adding, updating, or deleting database data.
+
+The next milestone will make the Next.js project pages fetch these endpoints.
+Project creation, status updates, and feedback will move across in later steps.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.
@@ -844,11 +1011,11 @@ inspect what changed at a particular step.
 
 ## Architecture we will build toward
 
-Next.js currently handles the web application and project database operations.
-NestJS now runs independently with its first health endpoint. Next, we will move
-project reads into Nest controllers and services, then have Next.js request that
-data over HTTP. Later steps will move the remaining database operations and
-business logic into NestJS. Database credentials stay on the server throughout.
+Next.js currently handles the web application and its project database operations.
+NestJS now has health and project read endpoints backed by the same Neon database.
+Next, we will have Next.js request project data from that API. Later steps will
+move the remaining database operations and business logic into NestJS.
+Database credentials stay on the server throughout.
 
 We now have project creation, status updates, a URL filter, and project feedback
 with local persistence and optional PostgreSQL storage. Future lessons will
