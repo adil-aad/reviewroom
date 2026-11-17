@@ -2,6 +2,7 @@
   "name": "reviewroom-api",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsc-watch --onSuccess \"node dist/main.js\"",
     "build": "tsc",

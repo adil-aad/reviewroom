@@ -956,6 +956,38 @@ existing records without adding, updating, or deleting database data.
 The next milestone will make the Next.js project pages fetch these endpoints.
 Project creation, status updates, and feedback will move across in later steps.
 
+## Milestone 12: Publishing the web app and API
+
+The public release runs the Next.js app and NestJS API as two Vercel projects.
+They use an isolated Neon demo branch initialized with the example projects
+and feedback. The development database and local JSON records remain separate.
+The concise root README now introduces the application, while this guide keeps
+the detailed learning history.
+
+NestJS 12 packages are ES modules. Our original CommonJS backend worked on the
+local Node.js runtime, but Vercel's runtime rejected `require()` of Nest's core
+package with `ERR_REQUIRE_ESM`. The backend now declares `"type": "module"` and
+uses TypeScript's `NodeNext` module and resolution settings to emit native
+JavaScript imports.
+
+Relative TypeScript imports now end in `.js`, such as `./app.module.js`.
+TypeScript resolves them to the source `.ts` files while compiling, and Node
+resolves the emitted `.js` files when running the application. This is why the
+source import extension describes the compiled file.
+
+ES modules provide `import.meta.url` instead of CommonJS's `__dirname`. The
+projects module uses `fileURLToPath(new URL("../../..", import.meta.url))` to
+find the repository root locally. On Vercel, the sensitive `DATABASE_URL`
+environment variable supplies the connection directly to the process.
+
+`main.ts` also respects the platform's `PORT` environment variable, keeping
+3001 as the local default. GitHub Actions builds both packages using Node.js
+22, while Vercel handles their production builds and server execution.
+
+`db:seed-demo` initializes the schema and inserts only sample records. It runs
+in a transaction and skips existing sample IDs, so repeating the command does
+not erase records or duplicate examples.
+
 ## Startup files
 
 - `package.json` lists the packages the app needs and its runnable commands.

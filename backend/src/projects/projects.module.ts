@@ -1,11 +1,12 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { resolve } from "node:path";
-import { ProjectsController } from "./projects.controller";
-import { ProjectsService } from "./projects.service";
+import { fileURLToPath } from "node:url";
+import { ProjectsController } from "./projects.controller.js";
+import { ProjectsService } from "./projects.service.js";
 
 // This module lives in backend/src/projects or backend/dist/projects.
-const projectRoot = resolve(__dirname, "../../..");
+const projectRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 @Module({
   imports: [

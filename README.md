@@ -122,6 +122,8 @@ npm run api:dev
 The API normally runs at **http://127.0.0.1:3001**. It reads the root `.env.local`
 and `.env`, with process environment variables taking precedence. Its project
 routes require Neon; `/health` works independently of database connectivity.
+The backend emits native ES modules with TypeScript's `NodeNext` settings,
+matching NestJS 12's package format and Vercel's runtime.
 
 ## API
 

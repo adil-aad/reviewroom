@@ -1,7 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { neon } from "@neondatabase/serverless";
-import type { Project } from "./project";
+import type { Project } from "./project.js";
 
 @Injectable()
 export class ProjectsService {
